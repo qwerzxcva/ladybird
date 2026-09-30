@@ -28,9 +28,8 @@ android {
             }
         }
         ndk {
-            // Specifies the ABI configurations of your native
-            // libraries Gradle should build and package with your app.
-            abiFilters += listOf("x86_64", "arm64-v8a")
+            // ARMv8 only - stripped all other ABIs for privacy-focused build
+            abiFilters += listOf("arm64-v8a")
         }
     }
 

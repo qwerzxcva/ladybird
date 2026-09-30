@@ -6,7 +6,17 @@ add_library(ladybird SHARED
     src/main/cpp/TimerExecutorService.cpp
     src/main/cpp/JNIHelpers.cpp
 )
-target_link_libraries(ladybird PRIVATE LibFileSystem jnigraphics android)
+
+# Link all custom modules: Privacy, Lightpanda IO, Gecko Extension Shim
+target_link_libraries(ladybird PRIVATE
+    LibFileSystem
+    LibPrivacy
+    LibLightpandaIO
+    LibGeckoShim
+    jnigraphics
+    android
+    log
+)
 
 include(../cmake/AndroidExtras.cmake)
 create_ladybird_bundle(ladybird)
