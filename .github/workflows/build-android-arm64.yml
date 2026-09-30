@@ -8,6 +8,7 @@ on:
 env:
   LADYBIRD_SOURCE_DIR: ${{ github.workspace }}
   CCACHE_DIR: ${{ github.workspace }}/.ccache
+  VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/vcpkg-bincache,readwrite"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || format('{0}-{1}', github.ref, github.run_number) }}
@@ -38,7 +39,11 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            ninja-build ccache libgl1-mesa-dev python3-pip unzip curl git
+            ninja-build ccache cmake pkg-config \
+            autoconf autoconf-archive automake libtool libtool-bin \
+            gettext gperf bison flex texinfo file nasm \
+            python3-pip python3-venv python3-setuptools \
+            perl unzip curl git
 
       - name: Setup vcpkg
         run: |
@@ -58,7 +63,16 @@ jobs:
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-android-arm64-${{ hashFiles('Libraries/**/CMakeLists.txt', 'CMakeLists.txt') }}
-          restore-keys: ccache-android-arm64-
+          restore-keys: |
+            ccache-android-arm64-
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg-bincache
+          key: vcpkg-bincache-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: |
+            vcpkg-bincache-
 
       - name: Build Android ARMv8 APK via Gradle
         working-directory: ${{ github.workspace }}/UI/Android
@@ -67,7 +81,7 @@ jobs:
           export ANDROID_NDK_HOME="${ANDROID_SDK_ROOT}/ndk/26.1.10909125"
           ./gradlew assembleDebug --no-daemon --stacktrace
         env:
-          GRADLE_OPTS: '-Xmx4096m'
+          GRADLE_OPTS: '-Xmx3072m'
 
       - name: Upload APK artifact
         if: success()
