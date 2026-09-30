@@ -99,13 +99,10 @@ Utf16String NavigatorIDMixin::user_agent() const
     // Privacy Hook: Intercept UA for fingerprint protection (WebLibre/Titanium style)
     static auto privacy_config = Privacy::PrivacyConfig::create();
     if (privacy_config->should_spoof_user_agent()) {
-        // Extract origin from navigator's document URL for per-origin isolation
-        StringView origin = "default"sv;
-        if (auto* doc = const_cast<NavigatorIDMixin*>(this)->navigator().document()) {
-            origin = doc->url().serialized_origin();
-        }
-        auto spoofed_ua = privacy_config->get_isolated_user_agent(origin);
-        return Utf16String::from_utf8_without_validation(spoofed_ua.bytes());
+        // Key the spoofed identity on the document URL so a site always sees the
+        // same UA while different sites do not share one.
+        auto spoofed_ua = privacy_config->get_isolated_user_agent(navigator_id_url().serialize());
+        return Utf16String::from_utf8(spoofed_ua);
     }
 
     // Must return the default `User-Agent` value.

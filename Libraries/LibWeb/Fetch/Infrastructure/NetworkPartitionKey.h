@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <AK/Types.h>
 #include <LibURL/Origin.h>
 #include <LibWeb/Export.h>
 #include <LibWeb/Forward.h>

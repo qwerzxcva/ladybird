@@ -4,7 +4,6 @@
  */
 
 #include "ExtensionBridge.h"
-#include <AK/JSONParser.h>
 #include <AK/StringBuilder.h>
 
 namespace GeckoShim {

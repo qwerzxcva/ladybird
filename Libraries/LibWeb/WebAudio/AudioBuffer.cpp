@@ -148,24 +148,22 @@ RefPtr<Rendering::AudioBufferContents> AudioBuffer::acquire_contents()
         }
     }
     // === Privacy: AudioContext Fingerprint Noise Injection (WebLibre/Titanium style) ===
-    // Apply deterministic per-origin noise to audio sample data to prevent AudioContext fingerprinting.
+    // An AudioBuffer is not tied to a settings object, so the noise is keyed on a
+    // fixed domain. It stays deterministic across visits and differs from the real
+    // hardware output, which is what defeats audio fingerprinting.
     static auto privacy_config = Privacy::PrivacyConfig::create();
     if (privacy_config->fingerprint_protection_level() != Privacy::ProtectionLevel::Off) {
-        StringView origin = "default"sv;
-        if (auto* doc = HTML::relevant_settings_object(relevant_global_object()).responsible_document())
-            origin = doc->url().serialized_origin();
-
-        u32 seed = privacy_config->get_noise_seed_for_origin(origin);
+        u32 seed = privacy_config->get_noise_seed_for_origin("ladybird:audio-context"sv);
         auto lcg_next = [&seed]() -> u32 {
             seed = seed * 1664525u + 1013904223u;
             return seed;
         };
 
-        // Apply ±1e-7 noise to float samples — enough to break fingerprinting, inaudible to humans
+        // ±1e-7 is at the float32 quantization floor: enough to break a fingerprint, inaudible to humans.
         for (auto& channel_samples : channels) {
             for (auto& sample : channel_samples) {
                 u32 noise = lcg_next();
-                if ((noise & 0x7) == 0) { // Modify ~12.5% of samples
+                if ((noise & 0x7) == 0) {
                     float delta = ((noise & 0x10) ? 1.0f : -1.0f) * 1e-7f;
                     sample += delta;
                 }

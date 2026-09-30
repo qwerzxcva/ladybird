@@ -11,6 +11,8 @@
 #include <LibGfx/Bitmap.h>
 #include <LibGfx/CanvasCommandList.h>
 #include <LibGfx/SharedImage.h>
+#include <LibPrivacy/FingerprintNoise.h>
+#include <LibPrivacy/PrivacyConfig.h>
 #include <LibWeb/Bindings/CanvasRenderingContext2DSettings.h>
 #include <LibWeb/Bindings/WebGLRenderingContextBase.h>
 #include <LibWeb/Bindings/Wrappable.h>
@@ -414,6 +416,18 @@ WebIDL::ExceptionOr<Utf16String> HTMLCanvasElement::to_data_url(Utf16View type, 
         return WebIDL::SecurityError::create(HTML::relevant_realm(*this), "Canvas is not origin-clean"_utf16);
     if (!bitmap)
         return "data:,"_utf16;
+
+    // === Privacy: Canvas Fingerprint Noise Injection (WebLibre/Titanium style) ===
+    // toDataURL() is one of the most common canvas fingerprinting vectors. The bitmap
+    // returned above is a fresh readback copy, so perturbing it here cannot leak into
+    // on-screen rendering or into drawImage().
+    static auto privacy_config = Privacy::PrivacyConfig::create();
+    if (privacy_config->fingerprint_protection_level() != Privacy::ProtectionLevel::Off) {
+        auto origin_url = document().url();
+        auto seed = privacy_config->get_noise_seed_for_origin(origin_url.serialize());
+        Privacy::apply_pixel_noise(bitmap->scanline_u8(0), bitmap->size_in_bytes(), seed);
+    }
+    // === End Privacy Hook ===
 
     // 3. Let file be a serialization of this canvas element's bitmap as a file, passing type and quality if given.
     Optional<double> quality = js_quality.has_value() && js_quality->is_number() ? js_quality->as_double() : Optional<double>();

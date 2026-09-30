@@ -3,5 +3,5 @@ set(SOURCES
     ExtensionHost.cpp
 )
 
-serenity_lib(LibGeckoShim geckoshim)
-target_link_libraries(LibGeckoShim PRIVATE AK)
+ladybird_lib(LibGeckoShim geckoshim)
+target_link_libraries(LibGeckoShim PRIVATE LibCore)

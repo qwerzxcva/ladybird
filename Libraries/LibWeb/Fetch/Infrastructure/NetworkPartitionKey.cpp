@@ -24,7 +24,7 @@ NetworkPartitionKey determine_the_network_partition_key(HTML::Environment const&
     // FIXME: 4. Let topLevelSite be the result of obtaining a site, given topLevelOrigin.
 
     // 5. Let secondKey be null or an implementation-defined value.
-    void* second_key = nullptr;
+    u64 second_key = 0;
 
     // 6. Return (topLevelSite, secondKey).
     return { top_level_origin.release_value(), second_key };
