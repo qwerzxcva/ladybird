@@ -61,7 +61,13 @@ Utf16String NavigatorIDMixin::platform() const
     // "Linux x86_64", "Linux armv81") or, for privacy and compatibility, a string that is commonly returned on another
     // platform.
 
-    // FIXME: Use some portion of the user agent string to make spoofing work 100%
+    // === Privacy: Platform Spoofing (WebLibre/Titanium style) ===
+    static auto privacy_config = Privacy::PrivacyConfig::create();
+    if (privacy_config->should_spoof_user_agent()) {
+        return "Linux aarch64"_utf16;
+    }
+    // === End Privacy Hook ===
+
     return Utf16String::from_ascii_without_validation(ResourceLoader::the().platform().bytes());
 }
 
@@ -110,27 +116,21 @@ Utf16String NavigatorIDMixin::user_agent() const
 // https://html.spec.whatwg.org/multipage/system-state.html#dom-navigator-vendor
 Utf16FlyString NavigatorIDMixin::vendor() const
 {
-    auto navigator_compatibility_mode = ResourceLoader::the().navigator_compatibility_mode();
-
-    // Must return the appropriate string from the following list:
-
-    // If the navigator compatibility mode is Chrome
-    if (navigator_compatibility_mode == NavigatorCompatibilityMode::Chrome) {
-        // The string "Google Inc.".
-        return "Google Inc."_utf16_fly_string;
-    }
-
-    // If the navigator compatibility mode is Gecko
-    if (navigator_compatibility_mode == NavigatorCompatibilityMode::Gecko) {
-        // The empty string.
+    // === Privacy: Vendor Spoofing (WebLibre/Titanium style) ===
+    static auto privacy_config = Privacy::PrivacyConfig::create();
+    if (privacy_config->should_spoof_user_agent()) {
         return ""_utf16_fly_string;
     }
+    // === End Privacy Hook ===
 
-    // If the navigator compatibility mode is WebKit
-    if (navigator_compatibility_mode == NavigatorCompatibilityMode::WebKit) {
-        // The string "Apple Computer, Inc.".
+    auto navigator_compatibility_mode = ResourceLoader::the().navigator_compatibility_mode();
+
+    if (navigator_compatibility_mode == NavigatorCompatibilityMode::Chrome)
+        return "Google Inc."_utf16_fly_string;
+    if (navigator_compatibility_mode == NavigatorCompatibilityMode::Gecko)
+        return ""_utf16_fly_string;
+    if (navigator_compatibility_mode == NavigatorCompatibilityMode::WebKit)
         return "Apple Computer, Inc."_utf16_fly_string;
-    }
 
     VERIFY_NOT_REACHED();
 }

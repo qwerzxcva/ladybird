@@ -36,6 +36,7 @@ extern "C" {
 #include <LibWeb/WebGL/WebGLUniformLocation.h>
 #include <LibWeb/WebGL/WebGLVertexArrayObject.h>
 #include <LibWeb/WebIDL/Buffers.h>
+#include <LibPrivacy/PrivacyConfig.h>
 
 namespace Web::WebGL {
 
@@ -1396,6 +1397,12 @@ WebIDL::ExceptionOr<JS::Value> WebGLRenderingContextImpl::get_parameter(JS::Real
             set_error(GL_INVALID_ENUM);
             return JS::js_null();
         }
+        // === Privacy: WebGL Vendor Spoofing (Titanium/WebLibre style) ===
+        static auto privacy_config = Privacy::PrivacyConfig::create();
+        if (privacy_config->fingerprint_protection_level() != Privacy::ProtectionLevel::Off) {
+            return JS::PrimitiveString::create(realm().vm(), "Qualcomm"_utf16);
+        }
+        // === End Privacy Hook ===
         auto result = reinterpret_cast<char const*>(m_context->get_string(GL_VENDOR));
         return JS::PrimitiveString::create(realm().vm(), Utf16String::from_ascii_without_validation(StringView { result, strlen(result) }.bytes()));
     }
@@ -1404,6 +1411,12 @@ WebIDL::ExceptionOr<JS::Value> WebGLRenderingContextImpl::get_parameter(JS::Real
             set_error(GL_INVALID_ENUM);
             return JS::js_null();
         }
+        // === Privacy: WebGL Renderer Spoofing (Titanium/WebLibre style) ===
+        static auto privacy_config = Privacy::PrivacyConfig::create();
+        if (privacy_config->fingerprint_protection_level() != Privacy::ProtectionLevel::Off) {
+            return JS::PrimitiveString::create(realm().vm(), "Adreno (TM) 740"_utf16);
+        }
+        // === End Privacy Hook ===
         auto result = reinterpret_cast<char const*>(m_context->get_string(GL_RENDERER));
         return JS::PrimitiveString::create(realm().vm(), Utf16String::from_ascii_without_validation(StringView { result, strlen(result) }.bytes()));
     }

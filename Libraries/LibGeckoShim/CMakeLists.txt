@@ -1,5 +1,6 @@
 set(SOURCES
     ExtensionBridge.cpp
+    ExtensionHost.cpp
 )
 
 serenity_lib(LibGeckoShim geckoshim)

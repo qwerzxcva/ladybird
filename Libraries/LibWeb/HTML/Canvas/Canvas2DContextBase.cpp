@@ -57,6 +57,7 @@
 #include <LibWeb/SVG/SVGImageElement.h>
 #include <LibWeb/WebIDL/ExceptionOr.h>
 #include <LibWebCommon/Infra/CharacterTypes.h>
+#include <LibPrivacy/PrivacyConfig.h>
 
 namespace Web::HTML {
 
@@ -348,6 +349,41 @@ RefPtr<Gfx::Bitmap> Canvas2DContextBase::read_pixels(Gfx::IntRect const& rect)
         m_cached_readback = pixels;
         m_cached_readback_rect = rect;
     }
+
+    // === Privacy: Canvas Fingerprint Noise Injection (WebLibre/Titanium style) ===
+    // Apply deterministic per-origin noise to pixel data to prevent canvas fingerprinting.
+    // Same origin always gets same noise pattern; different origins get different patterns.
+    static auto privacy_config = Privacy::PrivacyConfig::create();
+    if (privacy_config->fingerprint_protection_level() != Privacy::ProtectionLevel::Off && pixels) {
+        StringView origin = "default"sv;
+        if (auto* doc = canvas_host().canvas_relevant_global_impl()->document())
+            origin = doc->url().serialized_origin();
+
+        u32 seed = privacy_config->get_noise_seed_for_origin(origin);
+        // Simple LCG PRNG seeded per-origin for deterministic noise
+        auto lcg_next = [&seed]() -> u32 {
+            seed = seed * 1664525u + 1013904223u;
+            return seed;
+        };
+
+        // Apply ±1 LSB noise to each RGBA channel of every pixel
+        // This is enough to break fingerprinting but invisible to human eyes
+        auto* raw_pixels = reinterpret_cast<u8*>(pixels->scanline(0));
+        size_t total_bytes = static_cast<size_t>(pixels->height()) * pixels->pitch();
+        for (size_t i = 0; i < total_bytes; ++i) {
+            u32 noise = lcg_next();
+            // Only modify ~25% of bytes to keep visual fidelity high
+            if ((noise & 0x3) == 0) {
+                int delta = (noise & 0x2) ? 1 : -1;
+                int val = static_cast<int>(raw_pixels[i]) + delta;
+                raw_pixels[i] = static_cast<u8>(clamp(val, 0, 255));
+            }
+        }
+        // Invalidate cache since we modified the pixels
+        m_cached_readback = nullptr;
+    }
+    // === End Privacy Hook ===
+
     return pixels;
 }
 

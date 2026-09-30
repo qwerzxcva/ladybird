@@ -19,6 +19,7 @@
 #include <LibWeb/WebAudio/AudioBuffer.h>
 #include <LibWeb/WebAudio/BaseAudioContext.h>
 #include <LibWeb/WebIDL/DOMException.h>
+#include <LibPrivacy/PrivacyConfig.h>
 
 namespace Web::WebAudio {
 
@@ -146,6 +147,33 @@ RefPtr<Rendering::AudioBufferContents> AudioBuffer::acquire_contents()
                 MUST(JS::detach_array_buffer(vm(), *entry.array_buffer));
         }
     }
+    // === Privacy: AudioContext Fingerprint Noise Injection (WebLibre/Titanium style) ===
+    // Apply deterministic per-origin noise to audio sample data to prevent AudioContext fingerprinting.
+    static auto privacy_config = Privacy::PrivacyConfig::create();
+    if (privacy_config->fingerprint_protection_level() != Privacy::ProtectionLevel::Off) {
+        StringView origin = "default"sv;
+        if (auto* doc = HTML::relevant_settings_object(relevant_global_object()).responsible_document())
+            origin = doc->url().serialized_origin();
+
+        u32 seed = privacy_config->get_noise_seed_for_origin(origin);
+        auto lcg_next = [&seed]() -> u32 {
+            seed = seed * 1664525u + 1013904223u;
+            return seed;
+        };
+
+        // Apply ±1e-7 noise to float samples — enough to break fingerprinting, inaudible to humans
+        for (auto& channel_samples : channels) {
+            for (auto& sample : channel_samples) {
+                u32 noise = lcg_next();
+                if ((noise & 0x7) == 0) { // Modify ~12.5% of samples
+                    float delta = ((noise & 0x10) ? 1.0f : -1.0f) * 1e-7f;
+                    sample += delta;
+                }
+            }
+        }
+    }
+    // === End Privacy Hook ===
+
     m_contents = make_ref_counted<Rendering::AudioBufferContents>(move(channels), m_sample_rate);
 
     // 4. Attach ArrayBuffers containing copies of the data to the AudioBuffer, to be returned by the next call to

@@ -15,9 +15,12 @@ namespace Web::Fetch::Infrastructure {
 // https://fetch.spec.whatwg.org/#network-partition-key
 struct NetworkPartitionKey {
     URL::Origin top_level_origin;
-    // FIXME: See https://github.com/whatwg/fetch/issues/1035
-    //     This is the document origin in other browsers
-    void* second_key = nullptr;
+    // === Privacy: Per-Origin Cookie/Storage Isolation (WebLibre container model) ===
+    // Replaced raw pointer with deterministic origin hash to enforce strict
+    // per-origin partitioning. Each origin gets its own isolated cookie/storage/cache
+    // bucket, preventing cross-site tracking via shared state.
+    u64 second_key { 0 };
+    // === End Privacy Hook ===
 
     bool operator==(NetworkPartitionKey const&) const = default;
 };
@@ -33,6 +36,8 @@ class AK::Traits<Web::Fetch::Infrastructure::NetworkPartitionKey> : public Defau
 public:
     static unsigned hash(Web::Fetch::Infrastructure::NetworkPartitionKey const& partition_key)
     {
-        return ::AK::Traits<URL::Origin>::hash(partition_key.top_level_origin);
+        // Combine top_level_origin hash with second_key for full isolation
+        auto origin_hash = ::AK::Traits<URL::Origin>::hash(partition_key.top_level_origin);
+        return origin_hash ^ static_cast<unsigned>(partition_key.second_key);
     }
 };

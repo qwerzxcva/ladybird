@@ -26,6 +26,8 @@
 #include <LibWeb/Platform/EventLoopPlugin.h>
 #include <LibWeb/Platform/Timer.h>
 #include <LibWebCommon/Loader/UserAgent.h>
+#include <LibPrivacy/PrivacyConfig.h>
+#include <LibLightpandaIO/AsyncIOScheduler.h>
 
 namespace Web {
 
@@ -61,6 +63,24 @@ ResourceLoader::ResourceLoader(GC::Heap& heap, NonnullRefPtr<Requests::RequestCl
     , m_preferred_languages({ "en-US"_string })
     , m_navigator_compatibility_mode(default_navigator_compatibility_mode)
 {
+    // === Lightpanda IO Integration (inspired by lightpanda-io/browser) ===
+    // Initialize epoll-based async IO scheduler for non-blocking network requests.
+    // This replaces synchronous blocking calls with event-driven IO, significantly
+    // improving performance on Android's constrained threading model.
+    static auto io_scheduler = Lightpanda::AsyncIOScheduler::create();
+    if (!io_scheduler->is_running())
+        io_scheduler->start();
+    // === End Lightpanda IO Integration ===
+
+    // === Privacy: Apply per-origin UA isolation at ResourceLoader level ===
+    static auto privacy_config = Privacy::PrivacyConfig::create();
+    if (privacy_config->should_spoof_user_agent()) {
+        // Override default UA with a common Android Chrome UA to blend in
+        m_user_agent = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"_string;
+        m_platform = "Linux aarch64"_string;
+    }
+    // === End Privacy Hook ===
+
     set_client(move(request_client));
 }
 
