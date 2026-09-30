@@ -8,6 +8,7 @@
  */
 
 #include <LibGC/Heap.h>
+#include <LibPrivacy/PrivacyConfig.h>
 #include <LibWeb/Bindings/Wrappable.h>
 #include <LibWeb/Bindings/WrapperWorld.h>
 #include <LibWeb/Clipboard/Clipboard.h>
@@ -159,6 +160,14 @@ GC::Ref<WebXR::XRSystem> Navigator::xr()
 // https://w3c.github.io/pointerevents/#dom-navigator-maxtouchpoints
 WebIDL::Long Navigator::max_touch_points()
 {
+    // === Privacy: Touch Points Spoofing ===
+    // Reporting 0 marks the client as non-touch, which is itself a strong signal
+    // on a mobile platform. Report a typical Android value instead.
+    static auto privacy_config = Privacy::PrivacyConfig::create();
+    if (privacy_config->fingerprint_protection_level() != Privacy::ProtectionLevel::Off)
+        return 5;
+    // === End Privacy Hook ===
+
     // FIXME: Implement this for touch-capable devices.
     return 0;
 }

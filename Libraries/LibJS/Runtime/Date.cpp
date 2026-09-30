@@ -11,6 +11,7 @@
 #include <AK/Utf16String.h>
 #include <AK/Utf16StringBuilder.h>
 #include <LibJS/Runtime/AbstractOperations.h>
+#include <LibPrivacy/PrivacyConfig.h>
 #include <LibJS/Runtime/Date.h>
 #include <LibJS/Runtime/GlobalObject.h>
 #include <LibJS/Runtime/Intl/AbstractOperations.h>
@@ -451,6 +452,15 @@ static auto& cached_system_time_zone_identifier()
 // 21.4.1.24 SystemTimeZoneIdentifier ( ), https://tc39.es/ecma262/#sec-systemtimezoneidentifier
 Utf16String system_time_zone_identifier()
 {
+    // === Privacy: Time Zone Spoofing ===
+    // Date.getTimezoneOffset() and Intl.DateTimeFormat().resolvedOptions().timeZone
+    // both derive from this value, so pinning it here keeps the whole JS environment
+    // consistent with the spoofed identity instead of leaking the host's time zone.
+    static auto privacy_config = Privacy::PrivacyConfig::create();
+    if (privacy_config->fingerprint_protection_level() != Privacy::ProtectionLevel::Off)
+        return "UTC"_utf16;
+    // === End Privacy Hook ===
+
     // OPTIMIZATION: We cache the system time zone to avoid the expensive lookups below.
     if (cached_system_time_zone_identifier().has_value())
         return *cached_system_time_zone_identifier();

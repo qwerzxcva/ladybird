@@ -78,6 +78,8 @@ ResourceLoader::ResourceLoader(GC::Heap& heap, NonnullRefPtr<Requests::RequestCl
         // Override default UA with a common Android Chrome UA to blend in
         m_user_agent = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"_string;
         m_platform = "Linux aarch64"_string;
+        // Keep the advertised languages consistent with that identity.
+        m_preferred_languages = { "en-US"_string, "en"_string };
     }
     // === End Privacy Hook ===
 

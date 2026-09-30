@@ -13,7 +13,7 @@ NonnullRefPtr<ExtensionBridge> ExtensionBridge::create()
     return adopt_ref(*new ExtensionBridge());
 }
 
-void ExtensionBridge::handle_api_call(ExtensionAPI api, StringView payload_json, IPCResponseCallback callback)
+void ExtensionBridge::handle_api_call(ExtensionAPI api, StringView, IPCResponseCallback callback)
 {
     auto callback_id = m_next_callback_id++;
     m_pending_callbacks.set(callback_id, move(callback));
@@ -43,12 +43,12 @@ void ExtensionBridge::handle_api_call(ExtensionAPI api, StringView payload_json,
 
 void ExtensionBridge::register_content_script(StringView origin, StringView script_source)
 {
-    m_content_scripts.set(origin.to_string(), script_source.to_string());
+    m_content_scripts.set(String::from_utf8_without_validation(origin.bytes()), String::from_utf8_without_validation(script_source.bytes()));
 }
 
 void ExtensionBridge::unregister_content_script(StringView origin)
 {
-    m_content_scripts.remove(origin.to_string());
+    m_content_scripts.remove(String::from_utf8_without_validation(origin.bytes()));
 }
 
 String ExtensionBridge::get_shim_javascript()

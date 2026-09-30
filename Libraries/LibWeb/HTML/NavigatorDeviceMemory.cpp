@@ -6,6 +6,7 @@
 
 #include <AK/BuiltinWrappers.h>
 #include <LibCore/System.h>
+#include <LibPrivacy/PrivacyConfig.h>
 #include <LibWeb/HTML/NavigatorDeviceMemory.h>
 
 namespace Web::HTML {
@@ -13,6 +14,14 @@ namespace Web::HTML {
 // https://www.w3.org/TR/device-memory/#computing-device-memory-value
 WebIDL::Double NavigatorDeviceMemoryMixin::device_memory() const
 {
+    // === Privacy: Device Memory Spoofing ===
+    // Report the common high-end value so the device's real RAM does not
+    // contribute to the fingerprint.
+    static auto privacy_config = Privacy::PrivacyConfig::create();
+    if (privacy_config->fingerprint_protection_level() != Privacy::ProtectionLevel::Off)
+        return 4.0;
+    // === End Privacy Hook ===
+
     // The value is calculated by using the actual device memory in MiB then rounding it to the nearest number where
     // only the most significant bit can be set and the rest are zeros (nearest power of two).
     auto memory_in_bytes = Core::System::physical_memory_bytes();
