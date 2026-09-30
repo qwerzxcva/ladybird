@@ -5,16 +5,18 @@ on:
     branches: [ master, main, android-port ]
   workflow_dispatch:
 
+env:
+  LADYBIRD_SOURCE_DIR: ${{ github.workspace }}
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || format('{0}-{1}', github.ref, github.run_number) }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
-
-    env:
-      ANDROID_HOME: /usr/local/lib/android/sdk
-      ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/29.0.13599879
-      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
-      CCACHE_DIR: ${{ github.workspace }}/.ccache
 
     steps:
       - name: Checkout repository
@@ -29,60 +31,43 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            ninja-build \
-            ccache \
-            libgl1-mesa-dev \
-            libx11-dev \
-            libxcursor-dev \
-            libxrandr-dev \
-            libxi-dev \
-            python3-pip \
-            unzip \
-            curl \
-            git
+            ninja-build ccache libgl1-mesa-dev python3-pip unzip curl git
 
       - name: Setup vcpkg
         run: |
-          if [ ! -d "$VCPKG_ROOT" ]; then
-            git clone --depth 1 https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+          if [ ! -d "${{ github.workspace }}/vcpkg" ]; then
+            git clone --depth 1 https://github.com/microsoft/vcpkg.git "${{ github.workspace }}/vcpkg"
           fi
-          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+          "${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
 
-      - name: Configure Android NDK
+      - name: Install Android NDK
         run: |
-          # Ensure the expected NDK version exists or symlink available one
-          if [ ! -d "$ANDROID_NDK_HOME" ]; then
-            AVAILABLE_NDK=$(ls -d $ANDROID_HOME/ndk/* 2>/dev/null | sort -V | tail -1)
-            if [ -n "$AVAILABLE_NDK" ]; then
-              echo "Using available NDK: $AVAILABLE_NDK"
-              ln -sf "$AVAILABLE_NDK" "$ANDROID_NDK_HOME" || export ANDROID_NDK_HOME="$AVAILABLE_NDK"
-            else
-              echo "ERROR: No Android NDK found"
-              exit 1
-            fi
-          fi
-          echo "NDK path: $ANDROID_NDK_HOME"
+          yes | ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          yes | ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager "ndk;26.1.10909125" || true
+          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/26.1.10909125" >> $GITHUB_ENV
 
       - name: Restore ccache
         uses: actions/cache@v4
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-android-arm64-${{ hashFiles('Libraries/**/CMakeLists.txt', 'CMakeLists.txt') }}
-          restore-keys: |
-            ccache-android-arm64-
+          restore-keys: ccache-android-arm64-
 
-      - name: Grant execute permission to build script
-        run: chmod +x build_android_arm64.sh
-
-      - name: Build Android ARMv8 APK
+      - name: Build Android ARMv8 APK via Gradle
+        working-directory: ${{ github.workspace }}/UI/Android
         run: |
-          export PATH="$VCPKG_ROOT:$PATH"
-          ./build_android_arm64.sh
-        shell: bash
+          export VCPKG_ROOT="${{ github.workspace }}/vcpkg"
+          export ANDROID_NDK_HOME="${ANDROID_SDK_ROOT}/ndk/26.1.10909125"
+          ./gradlew assembleDebug --no-daemon --stacktrace
+        env:
+          GRADLE_OPTS: '-Xmx4096m'
 
       - name: Upload APK artifact
         if: success()
@@ -99,6 +84,6 @@ jobs:
           name: build-logs
           path: |
             UI/Android/app/build/
-            build/
+            Build/
             vcpkg/buildtrees/**/*.log
           retention-days: 7
