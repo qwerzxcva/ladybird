@@ -43,7 +43,7 @@ jobs:
       - name: Setup vcpkg
         run: |
           if [ ! -d "${{ github.workspace }}/vcpkg" ]; then
-            git clone --depth 1 https://github.com/microsoft/vcpkg.git "${{ github.workspace }}/vcpkg"
+            git clone https://github.com/microsoft/vcpkg.git "${{ github.workspace }}/vcpkg"
           fi
           "${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
 
