@@ -292,7 +292,7 @@ function(_rust_crate_common_setup)
     # compiler driver like clang-cl.
     if (NOT WIN32)
         list(APPEND cargo_env
-            "CARGO_TARGET_${target_upper}_LINKER=${LADYBIRD_ANDROID_LINKER_WRAPPER}"
+            "CARGO_TARGET_${target_upper}_LINKER=${CMAKE_C_COMPILER}"
             "AR_${target_underscore}=${CMAKE_AR}"
         )
         # On Android, the log library is required for AK's logging to work in Rust crates.

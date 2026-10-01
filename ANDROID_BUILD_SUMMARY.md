@@ -134,3 +134,40 @@
 ---
 
 *最后更新: 2026-10-01*
+
+---
+
+## 最新进展（构建 #33-34）
+
+### 构建 #33（c699a506）
+- **状态**: 失败
+- **错误**: `ld.lld: error: cannot open Scrt1.o`, `unable to find library -lc` 等
+- **原因**: 链接器包装脚本只传递 `--sysroot`，但 clang 驱动仍找不到 NDK 的库路径
+
+### 构建 #34（5e252dfc）- 运行中
+- **修复**: 添加 `--target=aarch64-linux-android30` 到链接器包装脚本
+- **预期**: clang 驱动会根据目标三元组自动选择正确的 sysroot 和库路径
+
+### 累计修复提交数
+共 **15+ 个提交**，修复了以下问题：
+1. LibCore EventLoop 指针传递
+2. LibGeckoShim 头文件和 String API
+3. LibWasm Cranelift 守卫
+4. LibGfx Skia 字体管理器
+5. LibWebView Profile CLI 变量守卫
+6. LibJS 解释器布局生成（stdout 重定向）
+7. Rust 交叉编译目标三元组
+8. CI 工作流（Rust 目标 + NDK 29）
+9. 链接器包装脚本（多次迭代）
+
+### 当前阻塞
+Rust 交叉编译到 `aarch64-linux-android` 时，链接器无法找到 NDK 系统库。这是 Ladybird 项目 Android 移植的已知复杂问题，涉及：
+- cargo 的链接器选择机制
+- NDK clang 驱动的 sysroot 查找
+- Rust target triple 与 NDK API level 的匹配
+
+### 后续方案
+如果构建 #34 仍失败，考虑：
+1. 联系 Ladybird 上游团队，询问 Android Rust 交叉编译的最佳实践
+2. 临时禁用 flapc 的 Rust 编译（使用预编译二进制）
+3. 使用不同的 NDK 版本（如 NDK 26 而非 29）
