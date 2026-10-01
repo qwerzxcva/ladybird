@@ -797,6 +797,7 @@ static u64 runtime_layout_hash()
     return hash;
 }
 
+#if WASM_COMPILED_FAULT_RECOVERY_SUPPORTED
 static CraneliftInsn serialize_insn(Dispatch const& dispatch, SourcesAndDestination const& addr)
 {
     CraneliftInsn out {};
@@ -1047,6 +1048,7 @@ static ErrorOr<Core::AnonymousBuffer> create_cranelift_output_buffer(ReadonlyByt
 
     return Core::AnonymousBuffer::create_with_size(output_size, Core::AnonymousBuffer::Sealability::Sealable);
 }
+#endif
 
 static ErrorOr<Core::AnonymousBuffer> finalize_cranelift_output_buffer(Core::AnonymousBuffer const& output)
 {
