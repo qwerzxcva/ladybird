@@ -327,11 +327,13 @@ function(_rust_crate_common_setup)
             # NOTE: must stay a single space-joined STRING (not a CMake list). cargo_env elements are
             # expanded as separate argv via COMMAND_EXPAND_LISTS, so any ';' list separator would leak
             # into the RUSTFLAGS value and glue two -Clink-arg flags together.
-            set(rust_link_args "-Clink-arg=--sysroot=${rust_ndk_sysroot} -Clink-arg=-llog")
-            if (RUST_TARGET_TRIPLE STREQUAL "aarch64-linux-android")
-                set(rust_link_args "${rust_link_args} -Clink-arg=--target=aarch64-linux-android30")
-            endif()
-            set(rust_link_args "${rust_link_args} -Clink-arg=-L${rust_ndk_sysroot}/usr/lib/${rust_ndk_lib_dir}")
+            #
+            # rust-lld is invoked with `-flavor gnu`, which does NOT auto-inject the NDK sysroot
+            # library directories. Without an explicit -L path it cannot resolve -llog and the
+            # transitive system deps (libdl/libm/libunwind/libc). Do NOT pass `--target=` here:
+            # it is a rustc flag, not a valid lld argument (lld only knows `--target2`), and
+            # passing it aborts the whole link. The Android min-API level is not a linker arg.
+            set(rust_link_args "-Clink-arg=--sysroot=${rust_ndk_sysroot} -Clink-arg=-llog -Clink-arg=-L${rust_ndk_sysroot}/usr/lib/${rust_ndk_lib_dir}")
         endif()
 
         list(APPEND cargo_env
@@ -341,7 +343,7 @@ function(_rust_crate_common_setup)
         )
         # RUSTFLAGS is set exactly once (as the target-specific variant above). Setting it multiple
         # times makes `cmake -E env` apply the LAST assignment, which was clobbering the --sysroot /
-        # --target / -L arguments and caused the "unable to find library libdl.so" link failure.
+        # -L arguments and caused the "unable to find library libdl.so" link failure.
         if (rust_link_args)
             list(APPEND cargo_env "CARGO_TARGET_${target_upper}_RUSTFLAGS=${rust_link_args}")
         endif()
