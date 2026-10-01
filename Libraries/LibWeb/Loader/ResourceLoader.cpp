@@ -80,6 +80,9 @@ ResourceLoader::ResourceLoader(GC::Heap& heap, NonnullRefPtr<Requests::RequestCl
         m_platform = "Linux aarch64"_string;
         // Keep the advertised languages consistent with that identity.
         m_preferred_languages = { "en-US"_string, "en"_string };
+        // Advertise Global Privacy Control so sites can honour the opt-out, and so
+        // navigator.globalPrivacyControl agrees with the Sec-GPC header we send.
+        set_enable_global_privacy_control(true);
     }
     // === End Privacy Hook ===
 

@@ -11,6 +11,7 @@
 #include <LibGC/Heap.h>
 #include <LibGC/WeakHashSet.h>
 #include <LibIPC/File.h>
+#include <LibPrivacy/PrivacyConfig.h>
 #include <LibJS/Runtime/AbstractOperations.h>
 #include <LibJS/Runtime/Accessor.h>
 #include <LibJS/Runtime/Completion.h>
@@ -2069,6 +2070,14 @@ i32 Window::outer_height() const
 // https://w3c.github.io/csswg-drafts/cssom-view/#dom-window-devicepixelratio
 double Window::device_pixel_ratio() const
 {
+    // === Privacy: Device Pixel Ratio Spoofing ===
+    // The exact DPR is device-specific and stable. Report a common high-DPI
+    // value instead; rendering keeps using the real ratio, so layout is unchanged.
+    static auto privacy_config = Privacy::PrivacyConfig::create();
+    if (privacy_config->fingerprint_protection_level() != Privacy::ProtectionLevel::Off)
+        return 3.0;
+    // === End Privacy Hook ===
+
     // 1. If there is no output device, return 1 and abort these steps.
     // 2. Let CSS pixel size be the size of a CSS pixel at the current page zoom and using a scale factor of 1.0.
     // 3. Let device pixel size be the vertical size of a device pixel of the output device.
