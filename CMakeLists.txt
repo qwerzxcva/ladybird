@@ -129,6 +129,9 @@ if (CMAKE_CROSSCOMPILING AND NOT CMAKE_CROSSCOMPILING_EMULATOR)
         else()
             message(WARNING "qemu-aarch64 was not found; cross-compiled build-time tools cannot run")
         endif()
+
+        # Set up linker wrapper for Rust cross-compilation to find NDK sysroot
+        set(LADYBIRD_ANDROID_LINKER_WRAPPER "${CMAKE_SOURCE_DIR}/Meta/CMake/AndroidLinkerWrapper.sh" CACHE PATH "Path to Android linker wrapper script")
     endif()
 endif()
 
