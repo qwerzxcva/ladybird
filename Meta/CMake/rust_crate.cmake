@@ -295,6 +295,12 @@ function(_rust_crate_common_setup)
             "CARGO_TARGET_${target_upper}_LINKER=${CMAKE_C_COMPILER}"
             "AR_${target_underscore}=${CMAKE_AR}"
         )
+        # On Android, the log library is required for AK's logging to work.
+        if (ANDROID)
+            list(APPEND cargo_env
+                "CARGO_TARGET_${target_upper}_RUSTFLAGS=-Clink-arg=-llog"
+            )
+        endif()
     endif()
 
     if (APPLE AND CMAKE_OSX_SYSROOT)
