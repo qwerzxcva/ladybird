@@ -291,20 +291,59 @@ function(_rust_crate_common_setup)
     # On Windows, rustc invokes the linker directly with MSVC-style flags, so we must not override it with a
     # compiler driver like clang-cl.
     if (NOT WIN32)
+        # Resolve the Android NDK sysroot so rust-lld can find the platform shared libraries
+        # (liblog, libdl, libunwind, libm, libc). Without an explicit -L path rust-lld fails
+        # with "unable to find library libdl.so".
+        set(rust_ndk_sysroot "")
+        if (ANDROID)
+            # CMAKE_SYSROOT is the NDK sysroot when building through the NDK toolchain; prefer it,
+            # then fall back to CMAKE_ANDROID_NDK / ANDROID_NDK_HOME.
+            if (CMAKE_SYSROOT AND EXISTS "${CMAKE_SYSROOT}")
+                set(rust_ndk_sysroot "${CMAKE_SYSROOT}")
+            elseif (CMAKE_ANDROID_NDK AND EXISTS "${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot")
+                set(rust_ndk_sysroot "${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot")
+            elseif (DEFINED ENV{ANDROID_NDK_HOME} AND EXISTS "$ENV{ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot")
+                set(rust_ndk_sysroot "$ENV{ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot")
+            endif()
+        endif()
+        if (NOT rust_ndk_sysroot)
+            set(rust_ndk_sysroot "/usr/local/lib/android/sdk/ndk/29.0.13599879/toolchains/llvm/prebuilt/linux-x86_64/sysroot")
+        endif()
+
+        # Map the Rust target triple to the NDK per-target shared-library directory.
+        set(rust_ndk_lib_dir "")
+        if (RUST_TARGET_TRIPLE STREQUAL "aarch64-linux-android")
+            set(rust_ndk_lib_dir "aarch64-linux-android")
+        elseif (RUST_TARGET_TRIPLE STREQUAL "armv7-linux-androideabi")
+            set(rust_ndk_lib_dir "arm-linux-androideabi")
+        elseif (RUST_TARGET_TRIPLE STREQUAL "x86_64-linux-android")
+            set(rust_ndk_lib_dir "x86_64-linux-android")
+        elseif (RUST_TARGET_TRIPLE STREQUAL "i686-linux-android")
+            set(rust_ndk_lib_dir "x86")
+        endif()
+
+        set(rust_link_args "")
+        if (rust_ndk_lib_dir)
+            # NOTE: must stay a single space-joined STRING (not a CMake list). cargo_env elements are
+            # expanded as separate argv via COMMAND_EXPAND_LISTS, so any ';' list separator would leak
+            # into the RUSTFLAGS value and glue two -Clink-arg flags together.
+            set(rust_link_args "-Clink-arg=--sysroot=${rust_ndk_sysroot} -Clink-arg=-llog")
+            if (RUST_TARGET_TRIPLE STREQUAL "aarch64-linux-android")
+                set(rust_link_args "${rust_link_args} -Clink-arg=--target=aarch64-linux-android30")
+            endif()
+            set(rust_link_args "${rust_link_args} -Clink-arg=-L${rust_ndk_sysroot}/usr/lib/${rust_ndk_lib_dir}")
+        endif()
+
         list(APPEND cargo_env
             # Use NDK's target-specific clang wrapper which has all paths baked in
             "CARGO_TARGET_${target_upper}_LINKER=rust-lld"
-            "RUSTFLAGS=-Clink-arg=--target=aarch64-linux-android30 -Clink-arg=--sysroot=/usr/local/lib/android/sdk/ndk/29.0.13599879/toolchains/llvm/prebuilt/linux-x86_64/sysroot -Clink-arg=-llog"
             "AR_${target_underscore}=${CMAKE_AR}"
         )
-        # On Android, the log library (v2) is required for AK's logging to work in Rust crates.
-        if (ANDROID)
-            list(APPEND cargo_env
-                "CARGO_TARGET_${target_upper}_RUSTFLAGS=-Clink-arg=-llog"
-            )
-            list(APPEND cargo_env
-                "RUSTFLAGS=-Clink-arg=-llog"
-            )
+        # RUSTFLAGS is set exactly once (as the target-specific variant above). Setting it multiple
+        # times makes `cmake -E env` apply the LAST assignment, which was clobbering the --sysroot /
+        # --target / -L arguments and caused the "unable to find library libdl.so" link failure.
+        if (rust_link_args)
+            list(APPEND cargo_env "CARGO_TARGET_${target_upper}_RUSTFLAGS=${rust_link_args}")
         endif()
     endif()
 
