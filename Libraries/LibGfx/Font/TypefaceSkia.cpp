@@ -99,7 +99,7 @@ static SkFontMgr& font_manager()
         }
 #endif
 #if defined(AK_OS_ANDROID)
-        font_manager = SkFontMgr_New_Android(nullptr);
+        font_manager = SkFontMgr_New_Android(nullptr, SkFontScanner_Make_FreeType());
 #elif defined(AK_OS_WINDOWS)
         if (Gfx::FontDatabase::the().force_freetype_rasterization())
             font_manager = SkFontMgr_New_Custom_Empty();
