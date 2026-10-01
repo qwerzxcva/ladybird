@@ -16,8 +16,8 @@
 #include <stdio.h>
 
 extern "C" int __android_log_write(int priority, char const* tag, char const* text);
-extern "C" int __android_log_print(int priority, char const* tag, char const* format, ...);
-extern "C" int __android_log_vprint(int priority, char const* tag, char const* format, va_list args);
+extern "C" int __android_log_print(int priority, char const* tag, char const* format, ...) __attribute__((format(printf, 3, 4)));
+extern "C" int __android_log_vprint(int priority, char const* tag, char const* format, va_list args) __attribute__((format(printf, 3, 0)));
 
 extern "C" int __android_log_write(int, char const*, char const* text)
 {
