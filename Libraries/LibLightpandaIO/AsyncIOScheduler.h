@@ -11,12 +11,15 @@
 #include <AK/Function.h>
 #include <AK/NonnullOwnPtr.h>
 #include <AK/Vector.h>
+#include <AK/kmalloc.h>
 #include <sys/epoll.h>
 
 namespace Lightpanda {
 
 class AsyncIOScheduler {
 public:
+    AK_ALLOC_WITH_KMALLOC;
+
     static NonnullOwnPtr<AsyncIOScheduler> create();
     ~AsyncIOScheduler();
 
