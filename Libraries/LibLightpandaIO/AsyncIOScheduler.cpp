@@ -13,7 +13,8 @@ namespace Lightpanda {
 
 NonnullOwnPtr<AsyncIOScheduler> AsyncIOScheduler::create()
 {
-    return make<AsyncIOScheduler>();
+    // make<T>() cannot be used here: it is a free function and the constructor is private.
+    return adopt_own(*new AsyncIOScheduler());
 }
 
 AsyncIOScheduler::AsyncIOScheduler()
