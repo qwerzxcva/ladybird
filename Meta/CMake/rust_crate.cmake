@@ -305,13 +305,13 @@ function(_rust_crate_common_setup)
         # On Android, the log library is required for AK's logging to work in Rust crates.
         if (ANDROID)
             list(APPEND cargo_env
-                "CARGO_TARGET_${target_upper}_RUSTFLAGS=-Clink-arg=--sysroot=${_ndk_sysroot}"
+                "CARGO_TARGET_${target_upper}_RUSTFLAGS=-Clink-arg=--sysroot -Clink-arg=${_ndk_sysroot}"
             )
             list(APPEND cargo_env
                 "CARGO_TARGET_${target_upper}_RUSTFLAGS=-Clink-arg=-llog"
             )
             list(APPEND cargo_env
-                "RUSTFLAGS=-Clink-arg=--sysroot=${_ndk_sysroot}"
+                "RUSTFLAGS=-Clink-arg=--sysroot -Clink-arg=${_ndk_sysroot}"
             )
             list(APPEND cargo_env
                 "RUSTFLAGS=-Clink-arg=-llog"
