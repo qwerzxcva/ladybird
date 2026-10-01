@@ -293,10 +293,11 @@ function(_rust_crate_common_setup)
     if (NOT WIN32)
         list(APPEND cargo_env
             # Use NDK's target-specific clang wrapper which has all paths baked in
-            "CARGO_TARGET_${target_upper}_LINKER=${CMAKE_C_COMPILER}"
+            "CARGO_TARGET_${target_upper}_LINKER=rust-lld"
+            "RUSTFLAGS=-Clink-arg=--target=aarch64-linux-android30 -Clink-arg=--sysroot=/usr/local/lib/android/sdk/ndk/29.0.13599879/toolchains/llvm/prebuilt/linux-x86_64/sysroot -Clink-arg=-llog"
             "AR_${target_underscore}=${CMAKE_AR}"
         )
-        # On Android, the log library is required for AK's logging to work in Rust crates.
+        # On Android, the log library (v2) is required for AK's logging to work in Rust crates.
         if (ANDROID)
             list(APPEND cargo_env
                 "CARGO_TARGET_${target_upper}_RUSTFLAGS=-Clink-arg=-llog"
