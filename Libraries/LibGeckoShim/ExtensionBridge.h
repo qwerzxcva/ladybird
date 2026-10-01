@@ -8,25 +8,14 @@
 
 #pragma once
 
-#include <AK/String.h>
-#include <AK/HashMap.h>
 #include <AK/Function.h>
-#include <AK/RefCounted.h>
+#include <AK/HashMap.h>
 #include <AK/NonnullRefPtr.h>
+#include <AK/RefCounted.h>
+#include <AK/String.h>
+#include <AK/Types.h>
 
 namespace GeckoShim {
-
-enum class ExtensionAPI : u32 {
-    RuntimeSendMessage,
-    RuntimeGetURL,
-    StorageLocalGet,
-    StorageLocalSet,
-    TabsQuery,
-    TabsCreate,
-    WebRequestOnBeforeRequest,
-    CookiesGetAll,
-    CookiesSet
-};
 
 class ExtensionBridge final : public RefCounted<ExtensionBridge> {
 public:
@@ -34,8 +23,9 @@ public:
 
     using IPCResponseCallback = Function<void(String const& response_json)>;
 
-    // Called from injected JS shim when extension makes an API call
-    void handle_api_call(ExtensionAPI api, StringView payload_json, IPCResponseCallback callback);
+    // Called with the string API name that the injected JS shim sent (for
+    // example "storage.local.get"), and answers with a JSON string.
+    void handle_api_call(StringView api_name, StringView payload_json, IPCResponseCallback callback);
 
     // Register/unregister content script for a given origin
     void register_content_script(StringView origin, StringView script_source);

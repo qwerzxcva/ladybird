@@ -4,7 +4,6 @@
  */
 
 #include "ExtensionBridge.h"
-#include <AK/StringBuilder.h>
 
 namespace GeckoShim {
 
@@ -13,32 +12,30 @@ NonnullRefPtr<ExtensionBridge> ExtensionBridge::create()
     return adopt_ref(*new ExtensionBridge());
 }
 
-void ExtensionBridge::handle_api_call(ExtensionAPI api, StringView, IPCResponseCallback callback)
+void ExtensionBridge::handle_api_call(StringView api_name, StringView, IPCResponseCallback callback)
 {
     auto callback_id = m_next_callback_id++;
     m_pending_callbacks.set(callback_id, move(callback));
 
-    // In a full implementation, this would serialize the call and send it
-    // via IPC to the native extension host process. For now, we provide
-    // stub responses that allow extensions to load without crashing.
-    StringBuilder response_builder;
-    switch (api) {
-    case ExtensionAPI::RuntimeSendMessage:
-        response_builder.append("{\"success\":true}"sv);
-        break;
-    case ExtensionAPI::StorageLocalGet:
-        response_builder.append("{}"sv);
-        break;
-    case ExtensionAPI::TabsQuery:
-        response_builder.append("[{\"id\":1,\"url\":\"about:blank\",\"active\":true}]"sv);
-        break;
-    default:
-        response_builder.append("{\"error\":\"not_implemented\"}"sv);
-        break;
-    }
+    // A real implementation would forward this to the extension host process over
+    // IPC and answer from there. Until that is wired up, answer with shapes that
+    // let an extension finish loading instead of throwing.
+    String response;
+    if (api_name == "storage.local.get"sv || api_name == "storage.local.remove"sv || api_name == "storage.local.clear"sv)
+        response = "{}"_string;
+    else if (api_name == "tabs.query"sv)
+        response = "[{\"id\":1,\"url\":\"about:blank\",\"active\":true}]"_string;
+    else if (api_name == "cookies.getAll"sv)
+        response = "[]"_string;
+    else if (api_name == "permissions.contains"sv)
+        response = "false"_string;
+    else if (api_name == "runtime.sendMessage"sv || api_name == "storage.local.set"sv || api_name == "cookies.set"sv)
+        response = "{\"success\":true}"_string;
+    else
+        response = "{}"_string;
 
-    if (auto cb = m_pending_callbacks.take(callback_id); cb.has_value())
-        cb.value()(response_builder.to_string_without_validation());
+    if (auto pending = m_pending_callbacks.take(callback_id); pending.has_value())
+        pending.value()(response);
 }
 
 void ExtensionBridge::register_content_script(StringView origin, StringView script_source)
@@ -54,19 +51,19 @@ void ExtensionBridge::unregister_content_script(StringView origin)
 String ExtensionBridge::get_shim_javascript()
 {
     return R"SHIM(
-(function() {
-    if (window.__ladybird_ext_shim_loaded) return;
-    window.__ladybird_ext_shim_loaded = true;
+(function () {
+    if (window.__ladybird_extension_shim_installed) return;
+    window.__ladybird_extension_shim_installed = true;
 
-    var callbacks = {};
+    var pending = {};
     var nextId = 1;
 
-    function sendMessage(apiName, payload) {
-        return new Promise(function(resolve, reject) {
+    function callNative(apiName, payload) {
+        return new Promise(function (resolve) {
             var id = nextId++;
-            callbacks[id] = { resolve: resolve, reject: reject };
+            pending[id] = resolve;
             window.postMessage({
-                type: 'LADYBIRD_EXT_IPC',
+                type: 'LADYBIRD_EXTENSION_CALL',
                 id: id,
                 api: apiName,
                 payload: payload
@@ -74,44 +71,81 @@ String ExtensionBridge::get_shim_javascript()
         });
     }
 
-    window.addEventListener('message', function(event) {
-        if (event.data && event.data.type === 'LADYBIRD_EXT_RESPONSE') {
-            var cb = callbacks[event.data.id];
-            if (cb) {
-                delete callbacks[event.data.id];
-                try {
-                    cb.resolve(JSON.parse(event.data.response));
-                } catch(e) {
-                    cb.resolve(event.data.response);
-                }
-            }
-        }
+    window.addEventListener('message', function (event) {
+        if (!event.data || event.data.type !== 'LADYBIRD_EXTENSION_RESULT') return;
+        var resolve = pending[event.data.id];
+        if (!resolve) return;
+        delete pending[event.data.id];
+        var value = event.data.value;
+        try { value = JSON.parse(event.data.value); } catch (e) { /* keep the raw string */ }
+        resolve(value);
     });
 
-    window.browser = {
-        runtime: {
-            sendMessage: function(msg) { return sendMessage('runtime.sendMessage', JSON.stringify(msg)); },
-            getURL: function(path) { return 'moz-extension://shim/' + path; },
-            onMessage: { addListener: function(){}, removeListener: function(){} }
-        },
-        storage: {
-            local: {
-                get: function(keys) { return sendMessage('storage.local.get', JSON.stringify(keys)); },
-                set: function(items) { return sendMessage('storage.local.set', JSON.stringify(items)); }
+    // Firefox's browser.* always returns a promise. Chrome's chrome.* takes a
+    // callback, and only returns a promise in Manifest V3. `dual` supports both
+    // calling conventions so the same extension code works on either API.
+    function dual(apiName) {
+        return function (payload, callback) {
+            var promise = callNative(apiName, JSON.stringify(payload === undefined ? {} : payload));
+            if (typeof callback === 'function') {
+                promise.then(function (value) { callback(value); });
+                return undefined;
             }
+            return promise;
+        };
+    }
+
+    function extensionURL(path) {
+        return (window.__ladybird_extension_scheme || 'moz-extension') + '://ladybird/' + path;
+    }
+
+    function eventStub() {
+        return { addListener: function () {}, removeListener: function () {}, hasListener: function () { return false; } };
+    }
+
+    var storageArea = {
+        get: dual('storage.local.get'),
+        set: dual('storage.local.set'),
+        remove: dual('storage.local.remove'),
+        clear: dual('storage.local.clear')
+    };
+
+    var api = {
+        runtime: {
+            sendMessage: dual('runtime.sendMessage'),
+            getManifest: function () { return window.__ladybird_extension_manifest || {}; },
+            getURL: extensionURL,
+            connect: function () {
+                return { postMessage: function () {}, disconnect: function () {}, onMessage: eventStub() };
+            },
+            onMessage: eventStub(),
+            onInstalled: eventStub(),
+            lastError: null
         },
+        storage: { local: storageArea, sync: storageArea, managed: storageArea, session: storageArea },
         tabs: {
-            query: function(queryInfo) { return sendMessage('tabs.query', JSON.stringify(queryInfo)); },
-            create: function(props) { return sendMessage('tabs.create', JSON.stringify(props)); }
-        },
-        webRequest: {
-            onBeforeRequest: { addListener: function(){}, removeListener: function(){} }
+            query: dual('tabs.query'),
+            create: dual('tabs.create'),
+            update: dual('tabs.update'),
+            sendMessage: dual('tabs.sendMessage')
         },
         cookies: {
-            getAll: function(details) { return sendMessage('cookies.getAll', JSON.stringify(details)); },
-            set: function(details) { return sendMessage('cookies.set', JSON.stringify(details)); }
-        }
+            get: dual('cookies.get'),
+            getAll: dual('cookies.getAll'),
+            set: dual('cookies.set'),
+            remove: dual('cookies.remove')
+        },
+        webRequest: {
+            onBeforeRequest: eventStub(),
+            onBeforeSendHeaders: eventStub(),
+            onHeadersReceived: eventStub()
+        },
+        scripting: { executeScript: dual('scripting.executeScript') },
+        permissions: { contains: dual('permissions.contains'), request: dual('permissions.request') }
     };
+
+    window.browser = api;
+    window.chrome = api;
 })();
 )SHIM"_string;
 }
