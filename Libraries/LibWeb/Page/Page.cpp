@@ -13,6 +13,7 @@
 #include <LibGfx/PaintingSurface.h>
 #include <LibIPC/Decoder.h>
 #include <LibIPC/Encoder.h>
+#include <LibPrivacy/PrivacyConfig.h>
 #include <LibWeb/Bindings/CSS.h>
 #include <LibWeb/CSS/StyleComputer.h>
 #include <LibWeb/Compositor/CompositorHost.h>
@@ -268,6 +269,15 @@ Gfx::Palette Page::palette() const
 // https://drafts.csswg.org/cssom-view-1/#web-exposed-screen-area
 CSSPixelRect Page::web_exposed_screen_area() const
 {
+    // === Privacy: Screen Area Spoofing ===
+    // Report a fixed CSS-pixel screen area that matches the spoofed mobile identity.
+    // Both screen.width/height and @media (device-width/height) read this, so they
+    // stay consistent with each other and with the spoofed devicePixelRatio.
+    static auto privacy_config = Privacy::PrivacyConfig::create();
+    if (privacy_config->fingerprint_protection_level() != Privacy::ProtectionLevel::Off)
+        return { 0, 0, 412, 915 };
+    // === End Privacy Hook ===
+
     // FIXME: 1. Let target be this’s relevant global object’s browsing context.
     // FIXME: 2. Let emulated screen area be the WebDriver BiDi emulated total screen area of target.
     // FIXME: 3. If emulated screen area is not null, return emulated screen area.
@@ -289,6 +299,12 @@ CSSPixelRect Page::web_exposed_screen_area() const
 // https://drafts.csswg.org/cssom-view-1/#web-exposed-available-screen-area
 CSSPixelRect Page::web_exposed_available_screen_area() const
 {
+    // === Privacy: Screen Area Spoofing ===
+    static auto privacy_config = Privacy::PrivacyConfig::create();
+    if (privacy_config->fingerprint_protection_level() != Privacy::ProtectionLevel::Off)
+        return { 0, 0, 412, 915 };
+    // === End Privacy Hook ===
+
     // FIXME: 1. Let target be this’s relevant global object’s browsing context.
     // FIXME: 2. Let emulated screen area be the WebDriver BiDi emulated total screen area of target.
     // FIXME: 3. If emulated screen area is not null, return emulated screen area.
