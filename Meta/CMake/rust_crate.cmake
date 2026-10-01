@@ -291,20 +291,23 @@ function(_rust_crate_common_setup)
     # On Windows, rustc invokes the linker directly with MSVC-style flags, so we must not override it with a
     # compiler driver like clang-cl.
     if (NOT WIN32)
-        # Resolve the Android NDK sysroot so rust-lld can find the platform shared libraries
-        # (liblog, libdl, libm, libc). Without an explicit -L path rust-lld fails
-        # with "unable to find library libdl.so". libunwind is intentionally NOT in this list:
-        # Android builds force panic=abort (see below) so rustc never links -lunwind.
+        # Resolve the Android NDK sysroot for Rust linking.
+        # Prefer ANDROID_NDK_HOME (NDK 26 in CI) over CMAKE_SYSROOT (NDK 29) because
+        # NDK 29 removed libunwind.so from sysroot while Rust's aarch64-linux-android
+        # target spec still hard-codes -lunwind in the link line. NDK 26's clang driver
+        # also auto-injects the correct -L paths at the start of the link command,
+        # unlike bare rust-lld which only sees -L paths that precede the -l flag.
         set(rust_ndk_sysroot "")
+        set(rust_ndk_home "")
         if (ANDROID)
-            # CMAKE_SYSROOT is the NDK sysroot when building through the NDK toolchain; prefer it,
-            # then fall back to CMAKE_ANDROID_NDK / ANDROID_NDK_HOME.
-            if (CMAKE_SYSROOT AND EXISTS "${CMAKE_SYSROOT}")
+            if (DEFINED ENV{ANDROID_NDK_HOME} AND EXISTS "$ENV{ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot")
+                set(rust_ndk_home "$ENV{ANDROID_NDK_HOME}")
+                set(rust_ndk_sysroot "${rust_ndk_home}/toolchains/llvm/prebuilt/linux-x86_64/sysroot")
+            elseif (CMAKE_SYSROOT AND EXISTS "${CMAKE_SYSROOT}")
                 set(rust_ndk_sysroot "${CMAKE_SYSROOT}")
             elseif (CMAKE_ANDROID_NDK AND EXISTS "${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot")
-                set(rust_ndk_sysroot "${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/sysroot")
-            elseif (DEFINED ENV{ANDROID_NDK_HOME} AND EXISTS "$ENV{ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot")
-                set(rust_ndk_sysroot "$ENV{ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot")
+                set(rust_ndk_home "${CMAKE_ANDROID_NDK}")
+                set(rust_ndk_sysroot "${rust_ndk_home}/toolchains/llvm/prebuilt/linux-x86_64/sysroot")
             endif()
         endif()
         if (NOT rust_ndk_sysroot)
@@ -323,35 +326,68 @@ function(_rust_crate_common_setup)
             set(rust_ndk_lib_dir "x86")
         endif()
 
+        # Choose the Rust linker and build the link arguments.
+        #
+        # NDK clang driver (preferred when rust_ndk_home is available):
+        #   Auto-injects the sysroot -L paths at the start of the link command, so
+        #   -llog / -lunwind in the -Bdynamic segment added by Rust's target spec
+        #   are resolved correctly. Only -C panic=abort is needed in RUSTFLAGS.
+        #
+        # Bare rust-lld (fallback):
+        #   Does NOT auto-inject -L paths. RUSTFLAGS are always appended AFTER
+        #   Rust's target-spec link args, so -L in RUSTFLAGS cannot resolve -llog
+        #   in the -Bdynamic segment. This is why we prefer the NDK clang driver.
+        #
+        # -C panic=abort is MANDATORY on Android: rustc's default dev profile is
+        # panic=unwind (LibImageDecoders also opts into unwind via PANIC_UNWIND),
+        # which makes rustc add -lunwind to the link line. RUSTFLAGS are appended
+        # AFTER cargo's profile -C panic flag, so this overrides any
+        # CARGO_PROFILE_*_PANIC=unwind. Desktop (non-Android) is unaffected.
+        #
+        # NOTE: must stay a single space-joined STRING (not a CMake list).
+        # cargo_env elements are expanded as separate argv via COMMAND_EXPAND_LISTS,
+        # so any ';' list separator would leak into the RUSTFLAGS value.
+        set(rust_linker "rust-lld")
         set(rust_link_args "")
         if (rust_ndk_lib_dir)
-            # NOTE: must stay a single space-joined STRING (not a CMake list). cargo_env elements are
-            # expanded as separate argv via COMMAND_EXPAND_LISTS, so any ';' list separator would leak
-            # into the RUSTFLAGS value and glue two -Clink-arg flags together.
-            #
-            # rust-lld is invoked with `-flavor gnu`, which does NOT auto-inject the NDK sysroot
-            # library directories. Without an explicit -L path it cannot resolve -llog and the
-            # transitive system deps (libdl/libm/libc). Do NOT pass `--target=` here:
-            # it is a rustc flag, not a valid lld argument (lld only knows `--target2`), and
-            # passing it aborts the whole link. The Android min-API level is not a linker arg.
-            #
-            # -C panic=abort is MANDATORY on Android: the NDK sysroot does not ship libunwind.so,
-            # and rustc's default dev profile is panic=unwind (LibImageDecoders also opts into
-            # unwind via PANIC_UNWIND), which makes rustc add -lunwind to the link line and fail
-            # with "unable to find library -lunwind". RUSTFLAGS are appended AFTER cargo's own
-            # profile -C panic flag, so this forces every Android crate to abort-on-panic and
-            # overrides any CARGO_PROFILE_*_PANIC=unwind. Desktop (non-Android) is unaffected.
-            set(rust_link_args "-Clink-arg=--sysroot=${rust_ndk_sysroot} -Clink-arg=-llog -Clink-arg=-L${rust_ndk_sysroot}/usr/lib/${rust_ndk_lib_dir} -C panic=abort")
+            if (rust_ndk_home AND EXISTS "${rust_ndk_home}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang")
+                # NDK clang driver: auto-injects sysroot -L paths at command start
+                set(rust_linker "${rust_ndk_home}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang")
+                set(rust_link_args "-C panic=abort")
+            else()
+                # Bare rust-lld: -L must precede -l in the command line
+                set(rust_link_args "-Clink-arg=-L${rust_ndk_sysroot}/usr/lib/${rust_ndk_lib_dir} -Clink-arg=--sysroot=${rust_ndk_sysroot} -Clink-arg=-llog -C panic=abort")
+            endif()
+
+            # Create stub libunwind.so: Android Bionic uses its own unwinder, but
+            # Rust's aarch64-linux-android target spec hard-codes -lunwind. NDK does
+            # not ship libunwind.so, so build an empty shared library to satisfy it.
+            set(stub_lib_dir "${CMAKE_BINARY_DIR}/stub_libs")
+            set(stub_unwind_so "${stub_lib_dir}/libunwind.so")
+            if (NOT EXISTS "${stub_unwind_so}")
+                file(MAKE_DIRECTORY "${stub_lib_dir}")
+                file(WRITE "${stub_lib_dir}/unwind_stub.c"
+                    "/* Stub: Android Bionic does not use libunwind; this empty library satisfies the linker. */\n")
+                execute_process(
+                    COMMAND ${CMAKE_C_COMPILER} -shared -fPIC -o "${stub_unwind_so}" "${stub_lib_dir}/unwind_stub.c"
+                    RESULT_VARIABLE _stub_result
+                    ERROR_VARIABLE _stub_error
+                )
+                if (NOT _stub_result EQUAL 0)
+                    message(WARNING "Failed to create stub libunwind.so: ${_stub_error}")
+                endif()
+            endif()
+            if (EXISTS "${stub_unwind_so}")
+                string(APPEND rust_link_args " -Clink-arg=-L${stub_lib_dir}")
+            endif()
         endif()
 
         list(APPEND cargo_env
-            # Use NDK's target-specific clang wrapper which has all paths baked in
-            "CARGO_TARGET_${target_upper}_LINKER=rust-lld"
+            "CARGO_TARGET_${target_upper}_LINKER=${rust_linker}"
             "AR_${target_underscore}=${CMAKE_AR}"
         )
-        # RUSTFLAGS is set exactly once (as the target-specific variant above). Setting it multiple
-        # times makes `cmake -E env` apply the LAST assignment, which was clobbering the --sysroot /
-        # -L arguments and caused the "unable to find library libdl.so" link failure.
+        # RUSTFLAGS is set exactly once. Setting it multiple times makes `cmake -E env`
+        # apply the LAST assignment, which clobbered --sysroot / -L arguments.
         if (rust_link_args)
             list(APPEND cargo_env "CARGO_TARGET_${target_upper}_RUSTFLAGS=${rust_link_args}")
         endif()
