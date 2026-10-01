@@ -385,12 +385,9 @@ function(_rust_crate_common_setup)
         list(APPEND cargo_env
             "CARGO_TARGET_${target_upper}_LINKER=${rust_linker}"
             "AR_${target_underscore}=${CMAKE_AR}"
+            # Force --sysroot to ensure the linker can find NDK libraries
+            "CARGO_TARGET_${target_upper}_RUSTFLAGS=-Clink-arg=--sysroot=${rust_ndk_sysroot} ${rust_link_args}"
         )
-        # RUSTFLAGS is set exactly once. Setting it multiple times makes `cmake -E env`
-        # apply the LAST assignment, which clobbered --sysroot / -L arguments.
-        if (rust_link_args)
-            list(APPEND cargo_env "CARGO_TARGET_${target_upper}_RUSTFLAGS=${rust_link_args}")
-        endif()
     endif()
 
     if (APPLE AND CMAKE_OSX_SYSROOT)
