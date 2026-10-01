@@ -391,6 +391,11 @@ function(_rust_crate_common_setup)
         if (rust_link_args)
             list(APPEND cargo_env "CARGO_TARGET_${target_upper}_RUSTFLAGS=${rust_link_args}")
         endif()
+        # Always add stub_libs to RUSTFLAGS so -lunwind can be resolved even when
+        # the NDK clang driver doesn't auto-inject the path.
+        if (stub_lib_dir AND EXISTS "${stub_lib_dir}")
+            list(APPEND cargo_env "CARGO_TARGET_${target_upper}_RUSTFLAGS=${rust_link_args} -Clink-arg=-L${stub_lib_dir}")
+        endif()
     endif()
 
     if (APPLE AND CMAKE_OSX_SYSROOT)
