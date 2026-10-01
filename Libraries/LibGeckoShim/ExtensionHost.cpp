@@ -5,6 +5,8 @@
 
 #include "ExtensionHost.h"
 #include <AK/Debug.h>
+#include <AK/JsonArray.h>
+#include <AK/JsonObject.h>
 #include <AK/JsonParser.h>
 #include <AK/StringBuilder.h>
 #include <LibCore/File.h>
@@ -221,13 +223,15 @@ Vector<String> ExtensionHost::get_content_scripts_for_url(StringView url) const
             continue;
 
         for (auto const& pattern : extension.content_scripts_matches) {
+            auto pattern_view = pattern.bytes_as_string_view();
+
             bool matches = false;
-            if (pattern == "<all_urls>"sv) {
+            if (pattern_view == "<all_urls>"sv) {
                 matches = true;
-            } else if (pattern.ends_with_bytes("/*"sv)) {
-                matches = url.starts_with(pattern.substring_view(0, pattern.length() - 2));
+            } else if (pattern_view.ends_with_bytes("/*"sv)) {
+                matches = url.starts_with(pattern_view.substring_view(0, pattern_view.length() - 2));
             } else {
-                matches = (url == pattern);
+                matches = (url == pattern_view);
             }
 
             if (matches) {
@@ -257,7 +261,7 @@ bool ExtensionHost::run_background_script(ExtensionManifest& manifest)
     if (manifest.background_script.is_empty())
         return false;
 
-    dbgln("[GeckoShim] Loaded background script for '{}' ({} bytes)", manifest.name, manifest.background_script.length());
+    dbgln("[GeckoShim] Loaded background script for '{}' ({} bytes)", manifest.name, manifest.background_script.bytes_as_string_view().length());
     return true;
 }
 
