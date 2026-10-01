@@ -292,8 +292,9 @@ function(_rust_crate_common_setup)
     # compiler driver like clang-cl.
     if (NOT WIN32)
         # Resolve the Android NDK sysroot so rust-lld can find the platform shared libraries
-        # (liblog, libdl, libunwind, libm, libc). Without an explicit -L path rust-lld fails
-        # with "unable to find library libdl.so".
+        # (liblog, libdl, libm, libc). Without an explicit -L path rust-lld fails
+        # with "unable to find library libdl.so". libunwind is intentionally NOT in this list:
+        # Android builds force panic=abort (see below) so rustc never links -lunwind.
         set(rust_ndk_sysroot "")
         if (ANDROID)
             # CMAKE_SYSROOT is the NDK sysroot when building through the NDK toolchain; prefer it,
@@ -330,10 +331,17 @@ function(_rust_crate_common_setup)
             #
             # rust-lld is invoked with `-flavor gnu`, which does NOT auto-inject the NDK sysroot
             # library directories. Without an explicit -L path it cannot resolve -llog and the
-            # transitive system deps (libdl/libm/libunwind/libc). Do NOT pass `--target=` here:
+            # transitive system deps (libdl/libm/libc). Do NOT pass `--target=` here:
             # it is a rustc flag, not a valid lld argument (lld only knows `--target2`), and
             # passing it aborts the whole link. The Android min-API level is not a linker arg.
-            set(rust_link_args "-Clink-arg=--sysroot=${rust_ndk_sysroot} -Clink-arg=-llog -Clink-arg=-L${rust_ndk_sysroot}/usr/lib/${rust_ndk_lib_dir}")
+            #
+            # -C panic=abort is MANDATORY on Android: the NDK sysroot does not ship libunwind.so,
+            # and rustc's default dev profile is panic=unwind (LibImageDecoders also opts into
+            # unwind via PANIC_UNWIND), which makes rustc add -lunwind to the link line and fail
+            # with "unable to find library -lunwind". RUSTFLAGS are appended AFTER cargo's own
+            # profile -C panic flag, so this forces every Android crate to abort-on-panic and
+            # overrides any CARGO_PROFILE_*_PANIC=unwind. Desktop (non-Android) is unaffected.
+            set(rust_link_args "-Clink-arg=--sysroot=${rust_ndk_sysroot} -Clink-arg=-llog -Clink-arg=-L${rust_ndk_sysroot}/usr/lib/${rust_ndk_lib_dir} -C panic=abort")
         endif()
 
         list(APPEND cargo_env
