@@ -26,8 +26,6 @@ android {
                     "-DLADYBIRD_VCPKG_TYPE=release",
                     "-DVCPKG_TARGET_ANDROID=ON"
                 )
-                // Pass NDK 26 path explicitly to CMake to ensure consistency
-                paths += file("../../CMakeLists.txt")
             }
         }
         ndk {
