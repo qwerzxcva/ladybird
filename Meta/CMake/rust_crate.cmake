@@ -292,26 +292,20 @@ function(_rust_crate_common_setup)
     # compiler driver like clang-cl.
     if (NOT WIN32)
         list(APPEND cargo_env
+            # Use NDK's target-specific clang wrapper which has all paths baked in
+            set(_ndk_clang "${CMAKE_C_COMPILER}")
+            string(REGEX REPLACE "clang$" "aarch64-linux-android30-clang" _ndk_clang "${_ndk_clang}")
+            if (EXISTS "${_ndk_clang}")
+                set(CMAKE_C_COMPILER "${_ndk_clang}")
+                set(CMAKE_CXX_COMPILER "${_ndk_clang}++")
+            endif()
             "CARGO_TARGET_${target_upper}_LINKER=${CMAKE_C_COMPILER}"
             "AR_${target_underscore}=${CMAKE_AR}"
         )
-        # Find NDK sysroot for linker
-        if (DEFINED ENV{ANDROID_NDK_HOME})
-            set(_ndk_sysroot "$ENV{ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot")
-        else()
-            string(REGEX REPLACE "/toolchains/llvm/prebuilt/.*/bin/clang$" "" _ndk_home "${CMAKE_C_COMPILER}")
-            set(_ndk_sysroot "${_ndk_home}/sysroot")
-        endif()
         # On Android, the log library is required for AK's logging to work in Rust crates.
         if (ANDROID)
             list(APPEND cargo_env
-                "CARGO_TARGET_${target_upper}_RUSTFLAGS=-Clink-arg=--sysroot -Clink-arg=${_ndk_sysroot}"
-            )
-            list(APPEND cargo_env
                 "CARGO_TARGET_${target_upper}_RUSTFLAGS=-Clink-arg=-llog"
-            )
-            list(APPEND cargo_env
-                "RUSTFLAGS=-Clink-arg=--sysroot -Clink-arg=${_ndk_sysroot}"
             )
             list(APPEND cargo_env
                 "RUSTFLAGS=-Clink-arg=-llog"
