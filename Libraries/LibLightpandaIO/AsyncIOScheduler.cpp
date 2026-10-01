@@ -13,7 +13,7 @@ namespace Lightpanda {
 
 NonnullOwnPtr<AsyncIOScheduler> AsyncIOScheduler::create()
 {
-    return adopt_own(*new AsyncIOScheduler());
+    return make<AsyncIOScheduler>();
 }
 
 AsyncIOScheduler::AsyncIOScheduler()
