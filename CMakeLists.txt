@@ -132,6 +132,8 @@ if (CMAKE_CROSSCOMPILING AND NOT CMAKE_CROSSCOMPILING_EMULATOR)
 
         # Set up linker wrapper for Rust cross-compilation to find NDK sysroot
         set(LADYBIRD_ANDROID_LINKER_WRAPPER "${CMAKE_SOURCE_DIR}/Meta/CMake/AndroidLinkerWrapper.sh" CACHE PATH "Path to Android linker wrapper script")
+        # Set the real linker path so the wrapper doesn't recurse
+        set(ENV{CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER_REAL} "${CMAKE_C_COMPILER}")
     endif()
 endif()
 
