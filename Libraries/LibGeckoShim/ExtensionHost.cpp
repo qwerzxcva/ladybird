@@ -228,7 +228,7 @@ Vector<String> ExtensionHost::get_content_scripts_for_url(StringView url) const
             bool matches = false;
             if (pattern_view == "<all_urls>"sv) {
                 matches = true;
-            } else if (pattern_view.ends_with_bytes("/*"sv)) {
+            } else if (pattern_view.ends_with("/*"sv)) {
                 matches = url.starts_with(pattern_view.substring_view(0, pattern_view.length() - 2));
             } else {
                 matches = (url == pattern_view);
