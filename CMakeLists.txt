@@ -116,6 +116,22 @@ include(lagom_install)
 include(rust_crate)
 include(targets)
 
+# Some build-time tools (currently LibJS's interpreter layout generator) are compiled
+# by this project but have to run on the build host. When cross-compiling they are
+# cross-compiled too, so run them through a user-mode emulator. This keeps the struct
+# offsets they measure faithful to the target ABI instead of the host's.
+if (CMAKE_CROSSCOMPILING AND NOT CMAKE_CROSSCOMPILING_EMULATOR)
+    if (ANDROID AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+        find_program(LADYBIRD_QEMU_AARCH64 NAMES qemu-aarch64-static qemu-aarch64)
+        if (LADYBIRD_QEMU_AARCH64)
+            set(CMAKE_CROSSCOMPILING_EMULATOR "${LADYBIRD_QEMU_AARCH64}")
+            message(STATUS "Cross-compiled build-time tools will run with ${LADYBIRD_QEMU_AARCH64}")
+        else()
+            message(WARNING "qemu-aarch64 was not found; cross-compiled build-time tools cannot run")
+        endif()
+    endif()
+endif()
+
 # Plugins need to be installed in order to be used by non-lagom builds
 add_lagom_library_install_rules(GenericClangPlugin)
 add_lagom_library_install_rules(JSClangPlugin)

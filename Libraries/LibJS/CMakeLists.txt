@@ -352,6 +352,15 @@ if (DEFINED FLAP_ARCH)
     # offsetof() to emit struct field offsets as DSL constants.
     add_executable(generate_interpreter_layout "${CMAKE_CURRENT_SOURCE_DIR}/Interpreter/GenerateLayout.cpp")
     target_link_libraries(generate_interpreter_layout PRIVATE AK)
+    if (ANDROID)
+        # This tool runs during the build, but the Android build cross-compiles it and
+        # the host cannot execute an aarch64 binary directly. It is run through a
+        # user-mode emulator instead (see the CMAKE_CROSSCOMPILING_EMULATOR setup in
+        # the top-level CMakeLists.txt), which needs a self-contained binary: link it
+        # statically and supply the liblog entry points AK references locally.
+        target_sources(generate_interpreter_layout PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Interpreter/AndroidLogStub.cpp")
+        target_link_options(generate_interpreter_layout PRIVATE -static)
+    endif()
     if (MSVC)
         target_compile_definitions(generate_interpreter_layout PRIVATE _ALLOW_KEYWORD_MACROS)
     endif()
