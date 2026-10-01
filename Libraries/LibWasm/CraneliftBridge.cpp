@@ -931,6 +931,7 @@ static CraneliftInsn serialize_insn(Dispatch const& dispatch, SourcesAndDestinat
 
     return out;
 }
+#endif
 
 ByteString const& cranelift_compiler_path()
 {
@@ -1048,7 +1049,6 @@ static ErrorOr<Core::AnonymousBuffer> create_cranelift_output_buffer(ReadonlyByt
 
     return Core::AnonymousBuffer::create_with_size(output_size, Core::AnonymousBuffer::Sealability::Sealable);
 }
-#endif
 
 static ErrorOr<Core::AnonymousBuffer> finalize_cranelift_output_buffer(Core::AnonymousBuffer const& output)
 {
