@@ -297,12 +297,22 @@ function(_rust_crate_common_setup)
         )
         # On Android, the log library is required for AK's logging to work.
         if (ANDROID)
+            # Find the NDK sysroot to pass to the linker.
+            if (DEFINED ENV{ANDROID_NDK_HOME})
+                set(_ndk_home "$ENV{ANDROID_NDK_HOME}")
+            elseif(DEFINED ENV{NDK_HOME})
+                set(_ndk_home "$ENV{NDK_HOME}")
+            else()
+                # Try to find the NDK from the toolchain path.
+                string(REGEX REPLACE "/toolchains/llvm/prebuilt/.*/bin/clang$" "/../.." _ndk_home "${CMAKE_C_COMPILER}")
+            endif()
+            # The sysroot for aarch64 is at <ndk>/toolchains/llvm/prebuilt/linux-x86_64/sysroot
+            set(_ndk_sysroot "${_ndk_home}/toolchains/llvm/prebuilt/linux-x86_64/sysroot")
             list(APPEND cargo_env
-                "CARGO_TARGET_${target_upper}_RUSTFLAGS=-Clink-arg=-llog"
+                "CARGO_TARGET_${target_upper}_RUSTFLAGS=-Clink-arg=--sysroot=${_ndk_sysroot} -Clink-arg=-llog"
             )
-            # Also set the global RUSTFLAGS to ensure it's picked up.
             list(APPEND cargo_env
-                "RUSTFLAGS=-Clink-arg=-llog"
+                "RUSTFLAGS=-Clink-arg=--sysroot=${_ndk_sysroot} -Clink-arg=-llog"
             )
         endif()
     endif()
