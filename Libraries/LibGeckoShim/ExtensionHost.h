@@ -14,6 +14,7 @@
 #include <AK/Optional.h>
 #include <AK/RefCounted.h>
 #include <AK/String.h>
+#include <AK/Types.h>
 #include <AK/Vector.h>
 
 namespace GeckoShim {
@@ -22,6 +23,10 @@ struct ExtensionManifest {
     String name;
     String version;
     String description;
+    i32 manifest_version { 2 };
+    // Firefox lets an extension declare its own stable ID; Chrome derives one
+    // from the signing key. We keep whatever the manifest declared, if anything.
+    String declared_extension_id;
     Vector<String> permissions;
     Vector<String> content_scripts_matches;
     String content_scripts_js;

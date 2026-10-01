@@ -59,7 +59,8 @@ jobs:
           echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/26.1.10909125" >> $GITHUB_ENV
 
       - name: Restore ccache
-        uses: actions/cache@v4
+        id: ccache-restore
+        uses: actions/cache/restore@v4
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-android-arm64-${{ hashFiles('Libraries/**/CMakeLists.txt', 'CMakeLists.txt') }}
@@ -67,7 +68,8 @@ jobs:
             ccache-android-arm64-
 
       - name: Restore vcpkg binary cache
-        uses: actions/cache@v4
+        id: vcpkg-cache-restore
+        uses: actions/cache/restore@v4
         with:
           path: ${{ github.workspace }}/vcpkg-bincache
           key: vcpkg-bincache-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
@@ -82,6 +84,23 @@ jobs:
           ./gradlew assembleDebug --no-daemon --stacktrace
         env:
           GRADLE_OPTS: '-Xmx3072m'
+
+      # The combined actions/cache step skips saving when the job fails, which would
+      # force a full vcpkg rebuild on every iteration. Save explicitly instead so the
+      # next run can reuse the packages that were already built.
+      - name: Save vcpkg binary cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg-bincache
+          key: ${{ steps.vcpkg-cache-restore.outputs.cache-primary-key }}
+
+      - name: Save ccache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
 
       - name: Upload APK artifact
         if: success()

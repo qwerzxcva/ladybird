@@ -68,6 +68,21 @@ Optional<ExtensionManifest> ExtensionHost::parse_manifest(StringView extension_p
         manifest.version = version.value();
     if (auto description = object.get_string("description"sv); description.has_value())
         manifest.description = description.value();
+    if (auto manifest_version = object.get_i32("manifest_version"sv); manifest_version.has_value())
+        manifest.manifest_version = manifest_version.value();
+
+    // Firefox (browser_specific_settings) and older Firefox (applications) both
+    // carry a gecko.id that extensions use as their stable identity.
+    auto read_gecko_id = [&manifest](JsonObject const& container) {
+        if (auto gecko = container.get_object("gecko"sv); gecko.has_value()) {
+            if (auto id = gecko->get_string("id"sv); id.has_value())
+                manifest.declared_extension_id = id.value();
+        }
+    };
+    if (auto settings = object.get_object("browser_specific_settings"sv); settings.has_value())
+        read_gecko_id(*settings);
+    else if (auto applications = object.get_object("applications"sv); applications.has_value())
+        read_gecko_id(*applications);
 
     if (auto permissions = object.get_array("permissions"sv); permissions.has_value()) {
         for (auto const& permission : permissions->values()) {
@@ -110,7 +125,14 @@ Optional<ExtensionManifest> ExtensionHost::parse_manifest(StringView extension_p
     }
 
     if (auto background = object.get_object("background"sv); background.has_value()) {
-        if (auto scripts = background->get_array("scripts"sv); scripts.has_value() && !scripts->values().is_empty()) {
+        // Manifest V3 (Chrome) declares a service worker; V2 declares scripts.
+        if (auto service_worker = background->get_string("service_worker"sv); service_worker.has_value()) {
+            auto service_worker_path = String::formatted("{}/{}", extension_path, service_worker.value());
+            if (!service_worker_path.is_error()) {
+                if (auto source = read_text_file(service_worker_path.value()); source.has_value())
+                    manifest.background_script = source.release_value();
+            }
+        } else if (auto scripts = background->get_array("scripts"sv); scripts.has_value() && !scripts->values().is_empty()) {
             auto const& first_script = scripts->values().first();
             if (first_script.is_string()) {
                 auto background_path = String::formatted("{}/{}", extension_path, first_script.as_string());
