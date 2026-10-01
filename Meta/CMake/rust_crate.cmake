@@ -300,6 +300,10 @@ function(_rust_crate_common_setup)
             list(APPEND cargo_env
                 "CARGO_TARGET_${target_upper}_RUSTFLAGS=-Clink-arg=-llog"
             )
+            # Also set the global RUSTFLAGS to ensure it's picked up.
+            list(APPEND cargo_env
+                "RUSTFLAGS=-Clink-arg=-llog"
+            )
         endif()
     endif()
 
