@@ -293,12 +293,6 @@ function(_rust_crate_common_setup)
     if (NOT WIN32)
         list(APPEND cargo_env
             # Use NDK's target-specific clang wrapper which has all paths baked in
-            set(_ndk_clang "${CMAKE_C_COMPILER}")
-            string(REGEX REPLACE "clang$" "aarch64-linux-android30-clang" _ndk_clang "${_ndk_clang}")
-            if (EXISTS "${_ndk_clang}")
-                set(CMAKE_C_COMPILER "${_ndk_clang}")
-                set(CMAKE_CXX_COMPILER "${_ndk_clang}++")
-            endif()
             "CARGO_TARGET_${target_upper}_LINKER=${CMAKE_C_COMPILER}"
             "AR_${target_underscore}=${CMAKE_AR}"
         )
