@@ -6,8 +6,9 @@ plugins {
 android {
     namespace = "org.serenityos.ladybird"
     compileSdk = 35
-    // FIXME: Replace the NDK version to a stable one (this is r29 beta 2)
-    ndkVersion = "29.0.13599879"
+    // Use NDK 26 to avoid libunwind.so removal in NDK 29
+    // NDK 26's clang driver auto-injects sysroot -L paths for Rust linking
+    ndkVersion = "26.1.10909125"
 
     defaultConfig {
         applicationId = "org.serenityos.ladybird"
@@ -19,7 +20,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
             cmake {
-                cppFlags += "-std=c++23"
+                cppFlags += "-std=c++20"
                 arguments += listOf(
                     "-DANDROID_STL=c++_shared",
                     "-DLADYBIRD_VCPKG_TYPE=release",
